@@ -84,4 +84,20 @@ public class Token {
 		return t;
 	}
 
+	public static Token ifT() {
+		return new Token(Type.IF);
+	}
+
+	public static Token elseT() {
+		return new Token(Type.ELSE);
+	}
+
+	public static Token then() {
+		return new Token(Type.THEN);
+	}
+
+	public static Token forLoop() {
+		return new Token(Type.FOR);
+	}
+
 }

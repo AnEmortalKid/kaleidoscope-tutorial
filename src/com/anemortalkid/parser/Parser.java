@@ -9,7 +9,9 @@ import java.util.TreeMap;
 import com.anemortalkid.ast.BinaryExprAST;
 import com.anemortalkid.ast.CallAST;
 import com.anemortalkid.ast.ExprAST;
+import com.anemortalkid.ast.ForExprAST;
 import com.anemortalkid.ast.FunctionAST;
+import com.anemortalkid.ast.IfExprAST;
 import com.anemortalkid.ast.NumberExprAST;
 import com.anemortalkid.ast.PrototypeAST;
 import com.anemortalkid.ast.VariableExprAST;
@@ -22,6 +24,7 @@ public class Parser {
 	private static Map<Character, Integer> binopPrecedence = new TreeMap<>();
 	static {
 		binopPrecedence.put('<', 10);
+		binopPrecedence.put('>', 10);
 		binopPrecedence.put('+', 20);
 		binopPrecedence.put('-', 20);
 		binopPrecedence.put('*', 40);
@@ -41,6 +44,7 @@ public class Parser {
 	// numberexpr ::= number
 	private ExprAST parseNumberExpr() {
 		NumberExprAST numberExprAST = new NumberExprAST(currToken.getNumericValue());
+		getNextToken(); // consume the number
 		return numberExprAST;
 	}
 
@@ -53,7 +57,7 @@ public class Parser {
 		}
 
 		if (currToken == null || currToken.getCharacterValue() != ')') {
-			return logError("Expected: \')\' but found: " + currToken);
+			return logError("Expected: \')\'.");
 		}
 		getNextToken(); // eat
 
@@ -65,7 +69,7 @@ public class Parser {
 
 		getNextToken(); // consume identifier
 
-		if(currToken.getTokenType() == Type.EOF || currToken.getCharacterValue() != '(') // simple ref
+		if (!isOpenParen(currToken)) // simple ref
 		{
 			return new VariableExprAST(idName);
 		}
@@ -73,7 +77,7 @@ public class Parser {
 		getNextToken(); // consume (
 		List<ExprAST> args = new ArrayList<>();
 
-		if (!currToken.getCharacterValue().equals(')')) // has args
+		if (!isCloseParen(currToken)) // has args
 		{
 			while (true) {
 				ExprAST arg = parseExpression();
@@ -82,7 +86,7 @@ public class Parser {
 					break;
 				}
 				if (!currToken.getCharacterValue().equals(',')) {
-					return logError("Expected: \',\' but found: " + currToken);
+					return logError("Expected: \',\'.");
 				}
 				getNextToken(); // advance
 			}
@@ -93,18 +97,52 @@ public class Parser {
 		return new CallAST(idName, args);
 	}
 
+	private boolean isCloseParen(Token token) {
+		if (token.getTokenType() == Type.EOF) {
+			return false;
+		}
+		if (token.getCharacterValue() == null) {
+			return false;
+		}
+		return token.getCharacterValue() == ')';
+	}
+
+	private boolean isOpenParen(Token token) {
+		if (token.getTokenType() == Type.EOF) {
+			return false;
+		}
+		if (token.getCharacterValue() == null) {
+			return false;
+		}
+		return token.getCharacterValue() == '(';
+	}
+
+	private boolean isEqualSign(Token token) {
+		if (token.getTokenType() == Type.EOF) {
+			return false;
+		}
+		if (token.getCharacterValue() == null) {
+			return false;
+		}
+		return token.getCharacterValue() == '=';
+	}
+
 	private ExprAST parsePrimary() {
 		switch (currToken.getTokenType()) {
 		case IDENTIFIER:
 			return parseIdentifierExpr();
 		case NUMERIC:
 			return parseNumberExpr();
+		case IF:
+			return parseIfExpr();
+		case FOR:
+			return parseForExpr();
 		case UNKNOWN:
 			if (currToken.getCharacterValue() == '(') {
 				return parseParenExpr();
 			}
 		default:
-			return logError("Unknown token when expecting an expression. Found: " + currToken);
+			return logError("Unknown token when expecting an expression.");
 		}
 	}
 
@@ -163,14 +201,14 @@ public class Parser {
 
 	private PrototypeAST parsePrototype() {
 		if (currToken.getTokenType() != Type.IDENTIFIER) {
-			return logErrorP("Expected function name in prototype. Found: " + currToken);
+			return logErrorP("Expected function name in prototype.");
 		}
 
 		String fName = currToken.getIdentifier();
 		getNextToken();// move along m8
 
 		if (currToken.getCharacterValue() != '(') {
-			return logErrorP("Expected \'(\' in prototype. Found: " + currToken);
+			return logErrorP("Expected \'(\' in prototype.");
 		}
 
 		List<String> args = new ArrayList<String>();
@@ -178,7 +216,7 @@ public class Parser {
 			args.add(currToken.getIdentifier());
 		}
 		if (currToken.getCharacterValue() != ')') {
-			return logErrorP("Expected \')\' in prototype. Found: " + currToken);
+			return logErrorP("Expected \')\' in prototype.");
 		}
 
 		getNextToken(); // eat )
@@ -219,8 +257,98 @@ public class Parser {
 		return new FunctionAST(emptyProto, expression);
 	}
 
+	private ExprAST parseIfExpr() {
+		getNextToken(); // consume if
+
+		ExprAST condition = parseExpression();
+		if (condition == null) {
+			return null;
+		}
+
+		if (currToken.getTokenType() != Type.THEN) {
+			return logError("Expected \'then\'.");
+		}
+
+		getNextToken(); // consume then
+
+		ExprAST then = parseExpression();
+		if (then == null) {
+			return null;
+		}
+
+		if (currToken.getTokenType() != Type.ELSE) {
+			return logError("Expected \'then\'.");
+		}
+
+		getNextToken(); // consume else
+
+		ExprAST elseExpr = parseExpression();
+
+		return new IfExprAST(condition, then, elseExpr);
+	}
+
+	private ExprAST parseForExpr() {
+		getNextToken(); // consume for
+
+		if (currToken.getTokenType() != Type.IDENTIFIER) {
+			return logError("Expected identifier after for");
+		}
+
+		String identifierStr = currToken.getIdentifier();
+		getNextToken(); // consume identifier
+
+		if (!isEqualSign(currToken)) {
+			return logError("Expected \'=\' after for.");
+		}
+
+		getNextToken(); // consume equal
+
+		ExprAST start = parseExpression();
+		if (start == null) {
+			return null;
+		}
+
+		if (!isComma(currToken)) {
+			return logError("Expected \',\' after for start value.");
+		}
+
+		getNextToken(); // consume comma
+
+		ExprAST end = parseExpression();
+		if (end == null) {
+			return null;
+		}
+
+		// parse step, which is optional
+		ExprAST step = null;
+		if (isComma(currToken)) {
+			getNextToken(); // consume commma
+			step = parseExpression();
+			if (step == null) {
+				return null;
+			}
+		}
+
+		ExprAST body = parseExpression();
+		if (body == null) {
+			return null;
+		}
+
+		return new ForExprAST(start, end, step, body);
+	}
+
+	private boolean isComma(Token token) {
+		if (token.getTokenType() == Type.EOF) {
+			return false;
+		}
+		if (token.getCharacterValue() == null) {
+			return false;
+		}
+		return token.getCharacterValue() == ',';
+	}
+
 	private ExprAST logError(String msg) {
-		System.err.println(msg);
+		System.err.println(msg + " Found:" + currToken);
 		System.err.println("\tConsumed:");
 		lexer.printConsumed();
 		return null;

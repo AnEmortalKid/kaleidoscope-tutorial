@@ -13,6 +13,10 @@ public class Lexer {
 	private Character lastChar = ' ';
 
 	private StringBuilder consumed = new StringBuilder();
+
+	public final static char CR = (char) 0x0D;
+	public final static char LF = (char) 0x0A;
+
 	public Token getToken() {
 
 		while (lastChar != null && Character.isWhitespace(lastChar)) {
@@ -37,6 +41,14 @@ public class Lexer {
 				return Token.def();
 			case "extern":
 				return Token.extern();
+			case "if":
+				return Token.ifT();
+			case "then":
+				return Token.then();
+			case "else":
+				return Token.elseT();
+			case "for":
+				return Token.forLoop();
 			default:
 				return Token.identifier(identifierStr);
 			}
@@ -57,7 +69,7 @@ public class Lexer {
 
 			do {
 				lastChar = getChar();
-			} while (lastChar != null && lastChar != '\n' && lastChar != '\r');
+			} while (lastChar != null && lastChar != CR && lastChar != LF);
 
 			if (lastChar != null) {
 				return getToken();
@@ -104,9 +116,8 @@ public class Lexer {
 	public Lexer(String input) {
 		reader = new StringReader(input);
 	}
-	
-	public void printConsumed()
-	{
+
+	public void printConsumed() {
 		System.out.println(consumed.toString());
 	}
 
